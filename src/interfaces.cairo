@@ -1,7 +1,7 @@
 use starknet::ContractAddress;
 
 #[derive(Drop, Serde, starknet::Store)]
-struct JobDetails {
+pub struct JobDetails {
     pub id: u256,
     pub employer: ContractAddress,
     pub title: ByteArray,
@@ -16,8 +16,8 @@ struct JobDetails {
     pub escrow_id: u256,
 }
 
-#[derive(Drop, Serde, starknet::Store)]
-struct WorkerApplication {
+#[derive(Drop, Serde, starknet::Store, Copy)]
+pub struct WorkerApplication {
     pub worker_pseudonym: felt252,
     pub skill_proof_hash: felt252,
     pub proposal_hash: felt252,
@@ -25,8 +25,8 @@ struct WorkerApplication {
     pub status: ApplicationStatus,
 }
 
-#[derive(Drop, Serde, starknet::Store)]
-struct WorkerProfile {
+#[derive(Drop, Serde, starknet::Store, Copy)]
+pub struct WorkerProfile {
     pub pseudonym: felt252,
     pub owner_commitment: felt252,
     pub skills_commitment: felt252,
@@ -39,17 +39,17 @@ struct WorkerProfile {
 }
 
 #[derive(Drop, Serde, starknet::Store)]
-struct SkillProof {
+pub struct SkillProof {
     pub skill_type_hash: felt252,
     pub skill_level: SkillLevel,
-    pub proof_data: Array<felt252>,
+    pub proof_data: (felt252, felt252, felt252, felt252), // Fixed size tuple instead of Array
     pub verification_key: felt252,
     pub proof_timestamp: u64,
     pub is_verified: bool,
 }
 
 #[derive(Drop, Serde, starknet::Store)]
-struct EscrowDetails {
+pub struct EscrowDetails {
     pub id: u256,
     pub job_id: u256,
     pub employer: ContractAddress,
@@ -64,16 +64,18 @@ struct EscrowDetails {
     pub platform_fee: u256,
 }
 
-#[derive(Drop, Serde, starknet::Store)]
-struct ZKProofComponents {
+#[derive(Drop, Serde)]
+pub struct ZKProofComponents {
     pub proof_a: (felt252, felt252),
     pub proof_b: ((felt252, felt252), (felt252, felt252)),
     pub proof_c: (felt252, felt252),
-    pub public_inputs: Array<felt252>,
+    pub public_inputs: (felt252, felt252, felt252, felt252), // Fixed size tuple instead of Array
 }
 
-#[derive(Drop, Serde, starknet::Store)]
-enum JobStatus {
+#[derive(Drop, Serde, starknet::Store, Copy, PartialEq)]
+pub enum JobStatus {
+    #[default]
+    Unknown,
     Open,
     Assigned,
     Submitted,
@@ -82,23 +84,29 @@ enum JobStatus {
     Cancelled,
 }
 
-#[derive(Drop, Serde, starknet::Store)]
-enum ApplicationStatus {
+#[derive(Drop, Serde, starknet::Store, Copy, PartialEq)]
+pub enum ApplicationStatus {
+    #[default]
+    Unknown,
     Pending,
     Accepted,
     Rejected,
 }
 
-#[derive(Drop, Serde, starknet::Store)]
-enum EscrowStatus {
+#[derive(Drop, Serde, starknet::Store, PartialEq)]
+pub enum EscrowStatus {
+    #[default]
+    Unknown,
     Active,
     Released,
     Disputed,
     Refunded,
 }
 
-#[derive(Drop, Serde, starknet::Store)]
-enum SkillLevel {
+#[derive(Drop, Serde, starknet::Store, Copy)]
+pub enum SkillLevel {
+    #[default]
+    Unknown,
     Beginner,
     Intermediate,
     Advanced,
@@ -106,7 +114,7 @@ enum SkillLevel {
 }
 
 #[starknet::interface]
-trait IJobMarketplace<TContractState> {
+pub trait IJobMarketplace<TContractState> {
     fn post_job(
         ref self: TContractState,
         job_title: ByteArray,
@@ -146,7 +154,7 @@ trait IJobMarketplace<TContractState> {
 }
 
 #[starknet::interface]
-trait IPseudonymRegistry<TContractState> {
+pub trait IPseudonymRegistry<TContractState> {
     fn register_pseudonym(
         ref self: TContractState,
         pseudonym: felt252,
@@ -190,7 +198,7 @@ trait IPseudonymRegistry<TContractState> {
 }
 
 #[starknet::interface]
-trait IEscrow<TContractState> {
+pub trait IEscrow<TContractState> {
     fn create_escrow(
         ref self: TContractState,
         job_id: u256,
@@ -210,7 +218,7 @@ trait IEscrow<TContractState> {
 }
 
 #[starknet::interface]
-trait IZKVerifier<TContractState> {
+pub trait IZKVerifier<TContractState> {
     fn verify_skill_proof(
         self: @TContractState,
         skill_type_hash: felt252,
@@ -239,28 +247,9 @@ trait IZKVerifier<TContractState> {
     ) -> bool;
 }
 
-#[starknet::interface]
-trait IEscrow<TContractState> {
-    fn create_escrow(
-        ref self: TContractState,
-        job_id: u256,
-        employer: ContractAddress,
-        worker_pseudonym: felt252,
-        worker_payout_address: ContractAddress,
-        amount: u256,
-        token: ContractAddress,
-        auto_release_delay: u64
-    ) -> u256;
-    
-    fn release_payment(ref self: TContractState, escrow_id: u256);
-    fn dispute_payment(ref self: TContractState, escrow_id: u256, reason: ByteArray);
-    fn resolve_dispute(ref self: TContractState, escrow_id: u256, release_to_worker: bool);
-    fn emergency_refund(ref self: TContractState, escrow_id: u256);
-    fn get_escrow_details(self: @TContractState, escrow_id: u256) -> EscrowDetails;
-}
 
 #[starknet::interface]
-trait AdminTrait<TContractState> {
+pub trait AdminTrait<TContractState> {
     fn authorize_contract(ref self: TContractState, contract_address: ContractAddress);
     fn revoke_contract(ref self: TContractState, contract_address: ContractAddress);
     fn set_dispute_resolver(ref self: TContractState, new_resolver: ContractAddress);
@@ -271,4 +260,14 @@ trait AdminTrait<TContractState> {
     fn pause(ref self: TContractState);
     fn unpause(ref self: TContractState);
     fn set_emergency_multisig(ref self: TContractState, new_multisig: ContractAddress);
+}
+
+// Basic ERC20 interface for reputation bonds
+#[starknet::interface]
+pub trait IERC20<TContractState> {
+    fn transfer(ref self: TContractState, recipient: ContractAddress, amount: u256) -> bool;
+    fn transfer_from(ref self: TContractState, sender: ContractAddress, recipient: ContractAddress, amount: u256) -> bool;
+    fn balance_of(self: @TContractState, account: ContractAddress) -> u256;
+    fn allowance(self: @TContractState, owner: ContractAddress, spender: ContractAddress) -> u256;
+    fn approve(ref self: TContractState, spender: ContractAddress, amount: u256) -> bool;
 }

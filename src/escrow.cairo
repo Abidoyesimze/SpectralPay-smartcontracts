@@ -1,12 +1,11 @@
-use starknet::ContractAddress;
-use super::interfaces::{EscrowDetails, EscrowStatus};
+// use starknet::ContractAddress;
+use super::interfaces::{EscrowDetails, EscrowStatus, IEscrow, AdminTrait};
 
 #[starknet::contract]
 mod Escrow {
-    use super::{EscrowDetails, EscrowStatus};
-    use starknet::{ContractAddress, get_caller_address, get_block_timestamp, get_contract_address};
-    use starknet::storage::Map;
-    use starknet::storage::{StoragePointerReadAccess, StoragePointerWriteAccess, StorageMapReadAccess, StorageMapWriteAccess};
+    use super::{EscrowDetails, EscrowStatus, IEscrow, AdminTrait};
+    use starknet::{ContractAddress, get_caller_address, get_block_timestamp};
+    use starknet::storage::{StoragePointerReadAccess, StoragePointerWriteAccess, StorageMapReadAccess, StorageMapWriteAccess, Map};
     use core::num::traits::Zero;
 
     #[storage]
@@ -187,20 +186,25 @@ mod Escrow {
             let mut escrow = self.escrows.read(escrow_id);
             
             // Check authorization
+            let auto_release_at = escrow.auto_release_at;
             let is_authorized = self.authorized_contracts.read(caller) ||
-                              (get_block_timestamp() >= escrow.auto_release_at && self.auto_release_enabled.read());
+                              (get_block_timestamp() >= auto_release_at && self.auto_release_enabled.read());
             
-            assert(is_authorized, 'Not authorized to release payment');
+            assert(is_authorized, 'Unauthorized');
             
             // Update status
-            escrow.status = EscrowStatus::Released;
-            self.escrows.write(escrow_id, escrow);
+            let worker_payout_address = escrow.worker_payout_address;
+            let amount = escrow.amount;
+            let platform_fee = escrow.platform_fee;
+            let mut updated_escrow = escrow;
+            updated_escrow.status = EscrowStatus::Released;
+            self.escrows.write(escrow_id, updated_escrow);
             
             self.emit(PaymentReleased {
                 escrow_id,
-                worker_payout_address: escrow.worker_payout_address,
-                amount: escrow.amount,
-                platform_fee: escrow.platform_fee,
+                worker_payout_address: worker_payout_address,
+                amount: amount,
+                platform_fee: platform_fee,
             });
         }
 
@@ -210,8 +214,9 @@ mod Escrow {
             let caller = get_caller_address();
             let mut escrow = self.escrows.read(escrow_id);
             
-            escrow.status = EscrowStatus::Disputed;
-            self.escrows.write(escrow_id, escrow);
+            let mut updated_escrow = escrow;
+            updated_escrow.status = EscrowStatus::Disputed;
+            self.escrows.write(escrow_id, updated_escrow);
             
             self.emit(PaymentDisputed {
                 escrow_id,
@@ -234,24 +239,26 @@ mod Escrow {
                 caller == self.dispute_resolver.read() || 
                 caller == self.owner.read() ||
                 caller == self.emergency_multisig.read(),
-                'Not authorized to resolve dispute'
+                'Unauthorized'
             );
             
             let mut escrow = self.escrows.read(escrow_id);
             
+            let amount = escrow.amount;
+            let mut updated_escrow = escrow;
             if release_to_worker {
-                escrow.status = EscrowStatus::Released;
+                updated_escrow.status = EscrowStatus::Released;
             } else {
-                escrow.status = EscrowStatus::Refunded;
+                updated_escrow.status = EscrowStatus::Refunded;
             }
             
-            self.escrows.write(escrow_id, escrow);
+            self.escrows.write(escrow_id, updated_escrow);
             
             self.emit(DisputeResolved {
                 escrow_id,
                 resolver: caller,
                 release_to_worker,
-                amount: escrow.amount,
+                amount: amount,
             });
         }
 
@@ -264,18 +271,20 @@ mod Escrow {
             assert(
                 caller == self.owner.read() || 
                 caller == self.emergency_multisig.read(),
-                'Not authorized for emergency refund'
+                'Unauthorized'
             );
             
             let mut escrow = self.escrows.read(escrow_id);
             let total_amount = escrow.amount + escrow.platform_fee;
+            let employer = escrow.employer;
             
-            escrow.status = EscrowStatus::Refunded;
-            self.escrows.write(escrow_id, escrow);
+            let mut updated_escrow = escrow;
+            updated_escrow.status = EscrowStatus::Refunded;
+            self.escrows.write(escrow_id, updated_escrow);
             
             self.emit(EmergencyRefund {
                 escrow_id,
-                employer: escrow.employer,
+                employer: employer,
                 amount: total_amount,
             });
         }
@@ -286,7 +295,6 @@ mod Escrow {
     }
 
     // Administrative functions
-    #[generate_trait]
     impl AdminImpl of AdminTrait<ContractState> {
         fn authorize_contract(ref self: ContractState, contract_address: ContractAddress) {
             assert(self.owner.read() == get_caller_address(), 'Only owner');

@@ -2,74 +2,74 @@ use starknet::ContractAddress;
 
 #[derive(Drop, Serde, starknet::Store)]
 struct JobDetails {
-    id: u256,
-    employer: ContractAddress,
-    title: ByteArray,
-    description: ByteArray,
-    required_skills_hash: felt252,
-    payment_amount: u256,
-    payment_token: ContractAddress,
-    deadline: u64,
-    status: JobStatus,
-    assigned_worker: felt252,
-    created_at: u64,
-    escrow_id: u256,
+    pub id: u256,
+    pub employer: ContractAddress,
+    pub title: ByteArray,
+    pub description: ByteArray,
+    pub required_skills_hash: felt252,
+    pub payment_amount: u256,
+    pub payment_token: ContractAddress,
+    pub deadline: u64,
+    pub status: JobStatus,
+    pub assigned_worker: felt252,
+    pub created_at: u64,
+    pub escrow_id: u256,
 }
 
 #[derive(Drop, Serde, starknet::Store)]
 struct WorkerApplication {
-    worker_pseudonym: felt252,
-    skill_proof_hash: felt252,
-    proposal_hash: felt252,
-    applied_at: u64,
-    status: ApplicationStatus,
+    pub worker_pseudonym: felt252,
+    pub skill_proof_hash: felt252,
+    pub proposal_hash: felt252,
+    pub applied_at: u64,
+    pub status: ApplicationStatus,
 }
 
 #[derive(Drop, Serde, starknet::Store)]
 struct WorkerProfile {
-    pseudonym: felt252,
-    owner_commitment: felt252,
-    skills_commitment: felt252,
-    reputation_score: u32,
-    completed_jobs: u32,
-    total_earnings: u256,
-    registration_timestamp: u64,
-    reputation_bond: u256,
-    is_active: bool,
+    pub pseudonym: felt252,
+    pub owner_commitment: felt252,
+    pub skills_commitment: felt252,
+    pub reputation_score: u32,
+    pub completed_jobs: u32,
+    pub total_earnings: u256,
+    pub registration_timestamp: u64,
+    pub reputation_bond: u256,
+    pub is_active: bool,
 }
 
 #[derive(Drop, Serde, starknet::Store)]
 struct SkillProof {
-    skill_type_hash: felt252,
-    skill_level: SkillLevel,
-    proof_data: Array<felt252>,
-    verification_key: felt252,
-    proof_timestamp: u64,
-    is_verified: bool,
+    pub skill_type_hash: felt252,
+    pub skill_level: SkillLevel,
+    pub proof_data: Array<felt252>,
+    pub verification_key: felt252,
+    pub proof_timestamp: u64,
+    pub is_verified: bool,
 }
 
 #[derive(Drop, Serde, starknet::Store)]
 struct EscrowDetails {
-    id: u256,
-    job_id: u256,
-    employer: ContractAddress,
-    worker_pseudonym: felt252,
-    worker_payout_address: ContractAddress,
-    amount: u256,
-    token: ContractAddress,
-    status: EscrowStatus,
-    created_at: u64,
-    auto_release_at: u64,
-    dispute_deadline: u64,
-    platform_fee: u256,
+    pub id: u256,
+    pub job_id: u256,
+    pub employer: ContractAddress,
+    pub worker_pseudonym: felt252,
+    pub worker_payout_address: ContractAddress,
+    pub amount: u256,
+    pub token: ContractAddress,
+    pub status: EscrowStatus,
+    pub created_at: u64,
+    pub auto_release_at: u64,
+    pub dispute_deadline: u64,
+    pub platform_fee: u256,
 }
 
 #[derive(Drop, Serde, starknet::Store)]
 struct ZKProofComponents {
-    proof_a: (felt252, felt252),
-    proof_b: ((felt252, felt252), (felt252, felt252)),
-    proof_c: (felt252, felt252),
-    public_inputs: Array<felt252>,
+    pub proof_a: (felt252, felt252),
+    pub proof_b: ((felt252, felt252), (felt252, felt252)),
+    pub proof_c: (felt252, felt252),
+    pub public_inputs: Array<felt252>,
 }
 
 #[derive(Drop, Serde, starknet::Store)]
@@ -237,4 +237,38 @@ trait IZKVerifier<TContractState> {
         skill_type_hash: felt252,
         verification_key: felt252
     ) -> bool;
+}
+
+#[starknet::interface]
+trait IEscrow<TContractState> {
+    fn create_escrow(
+        ref self: TContractState,
+        job_id: u256,
+        employer: ContractAddress,
+        worker_pseudonym: felt252,
+        worker_payout_address: ContractAddress,
+        amount: u256,
+        token: ContractAddress,
+        auto_release_delay: u64
+    ) -> u256;
+    
+    fn release_payment(ref self: TContractState, escrow_id: u256);
+    fn dispute_payment(ref self: TContractState, escrow_id: u256, reason: ByteArray);
+    fn resolve_dispute(ref self: TContractState, escrow_id: u256, release_to_worker: bool);
+    fn emergency_refund(ref self: TContractState, escrow_id: u256);
+    fn get_escrow_details(self: @TContractState, escrow_id: u256) -> EscrowDetails;
+}
+
+#[starknet::interface]
+trait AdminTrait<TContractState> {
+    fn authorize_contract(ref self: TContractState, contract_address: ContractAddress);
+    fn revoke_contract(ref self: TContractState, contract_address: ContractAddress);
+    fn set_dispute_resolver(ref self: TContractState, new_resolver: ContractAddress);
+    fn set_dispute_fee(ref self: TContractState, new_fee: u256);
+    fn set_platform_fee_rate(ref self: TContractState, new_rate: u256);
+    fn toggle_auto_release(ref self: TContractState);
+    fn set_max_dispute_duration(ref self: TContractState, duration: u64);
+    fn pause(ref self: TContractState);
+    fn unpause(ref self: TContractState);
+    fn set_emergency_multisig(ref self: TContractState, new_multisig: ContractAddress);
 }

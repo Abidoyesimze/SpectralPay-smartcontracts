@@ -1,0 +1,11 @@
+[profile.testnet]
+rpc_url = "https://sepolia.starknet.io"
+account = "deployer"
+
+[profile.mainnet]
+rpc_url = "https://starknet-mainnet.infura.io/v3/YOUR_INFURA_KEY"
+account = "deployer"
+
+[account.deployer]
+type = "oz"
+version = 0

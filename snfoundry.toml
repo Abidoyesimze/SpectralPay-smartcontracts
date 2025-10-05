@@ -2,7 +2,7 @@
 # and https://foundry-rs.github.io/starknet-foundry/projects/configuration.html for more information
 
 [sncast.default]
-url = "https://starknet-sepolia.public.blastapi.io"
+url = "https://starknet-sepolia.g.alchemy.com/v2/FIQ1qwifmra7ZqdkVHnZ2lHQAKG8j4Yd"
 account = "deployer"
 wait-params = { timeout = 300, retry-interval = 10 }
 block-explorer = "StarkScan"

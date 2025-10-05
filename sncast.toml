@@ -1,5 +1,5 @@
 [profile.testnet]
-rpc_url = "https://sepolia.starknet.io"
+rpc_url = "https://starknet-sepolia.public.blastapi.io"
 account = "deployer"
 
 [profile.mainnet]

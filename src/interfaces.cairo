@@ -9,10 +9,12 @@ pub struct JobDetails {
     pub required_skills_hash: felt252,
     pub payment_amount: u256,
     pub payment_token: ContractAddress,
-    pub deadline: u64,
+    pub work_deadline_days: u64,  // Duration in days for work completion
+    pub work_deadline: u64,       // Actual deadline timestamp (set when worker assigned)
     pub status: JobStatus,
     pub assigned_worker: felt252,
     pub created_at: u64,
+    pub assigned_at: u64,         // When worker was assigned
     pub escrow_id: u256,
 }
 
@@ -121,7 +123,7 @@ pub trait IJobMarketplace<TContractState> {
         job_description: ByteArray,
         required_skills_hash: felt252,
         payment_amount: u256,
-        deadline: u64,
+        work_deadline_days: u64,
         payment_token: ContractAddress
     ) -> u256;
     
@@ -149,6 +151,7 @@ pub trait IJobMarketplace<TContractState> {
     
     fn approve_work(ref self: TContractState, job_id: u256);
     fn dispute_work(ref self: TContractState, job_id: u256, reason: ByteArray);
+    fn extend_deadline(ref self: TContractState, job_id: u256, additional_days: u64);
     fn get_job_details(self: @TContractState, job_id: u256) -> JobDetails;
     fn get_worker_applications(self: @TContractState, job_id: u256) -> Array<WorkerApplication>;
 }

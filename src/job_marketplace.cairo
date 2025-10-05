@@ -116,7 +116,7 @@ mod JobMarketplace {
             job_description: ByteArray,
             required_skills_hash: felt252,
             payment_amount: u256,
-            deadline: u64,
+            work_deadline_days: u64,
             payment_token: ContractAddress,
         ) -> u256 {
             assert(!self.paused.read(), 'Contract paused');
@@ -126,14 +126,14 @@ mod JobMarketplace {
             
             // Validate inputs
             assert(payment_amount >= self.min_job_amount.read(), 'Payment too low');
-            assert(deadline > current_time, 'Invalid deadline');
-            assert(deadline - current_time <= self.max_deadline_days.read() * 86400, 'Deadline too far');
+            assert(work_deadline_days > 0, 'Invalid deadline days');
+            assert(work_deadline_days <= self.max_deadline_days.read(), 'Deadline too far');
             
             // Generate job ID
             let job_id = self.next_job_id.read();
             self.next_job_id.write(job_id + 1);
             
-            // Create job
+            // Create job - work_deadline will be set when worker is assigned
             let job = JobDetails {
                 id: job_id,
                 employer: caller,
@@ -142,10 +142,12 @@ mod JobMarketplace {
                 required_skills_hash: required_skills_hash,
                 payment_amount: payment_amount,
                 payment_token: payment_token,
-                deadline: deadline,
+                work_deadline_days: work_deadline_days,
+                work_deadline: 0,  // Will be set when worker is assigned
                 status: JobStatus::Open,
                 assigned_worker: 0,
                 created_at: current_time,
+                assigned_at: 0,  // Will be set when worker is assigned
                 escrow_id: 0,
             };
             
@@ -215,14 +217,34 @@ mod JobMarketplace {
             let application = self.job_applications.read((job_id, selected_worker));
             assert(application.status == ApplicationStatus::Pending, 'Invalid application');
             
-            // Create escrow (simplified - no actual escrow creation for now)
-            let escrow_id = 1; // Placeholder
+            // Create escrow with proper deadline integration
+            // The auto_release_delay should be the work deadline duration
+            let auto_release_delay = job.work_deadline_days * 86400;
+            
+            // TODO: Call escrow contract to create actual escrow
+            // let escrow_id = IEscrowDispatcher { contract_address: self.escrow_contract.read() }
+            //     .create_escrow(
+            //         job_id,
+            //         job.employer,
+            //         selected_worker,
+            //         worker_payout_address,
+            //         job.payment_amount,
+            //         job.payment_token,
+            //         auto_release_delay
+            //     );
+            let escrow_id = 1; // Placeholder until escrow integration is complete
+            
+            // Set the actual work deadline when worker is assigned
+            let current_time = get_block_timestamp();
+            let work_deadline = current_time + (job.work_deadline_days * 86400);
             
             // Update job
             let mut updated_job = job;
             updated_job.status = JobStatus::Assigned;
             updated_job.assigned_worker = selected_worker;
             updated_job.escrow_id = escrow_id;
+            updated_job.work_deadline = work_deadline;
+            updated_job.assigned_at = current_time;
             self.jobs.write(job_id, updated_job);
             
             // Update application
@@ -300,6 +322,32 @@ mod JobMarketplace {
                 job_id: job_id,
                 reason: reason,
             });
+        }
+
+        fn extend_deadline(
+            ref self: ContractState,
+            job_id: u256,
+            additional_days: u64,
+        ) {
+            assert(!self.paused.read(), 'Contract paused');
+            
+            let job = self.jobs.read(job_id);
+            assert(job.employer == get_caller_address(), 'Not employer');
+            assert(job.status == JobStatus::Assigned, 'Job not assigned');
+            assert(additional_days > 0, 'Invalid additional days');
+            assert(additional_days <= 30, 'Extension too long'); // Max 30 days extension
+            
+            // Check if current deadline hasn't passed
+            let current_time = get_block_timestamp();
+            let current_deadline = job.work_deadline;
+            assert(current_deadline > current_time, 'Deadline already passed');
+            
+            // Extend the deadline
+            let mut updated_job = job;
+            updated_job.work_deadline = current_deadline + (additional_days * 86400);
+            self.jobs.write(job_id, updated_job);
+            
+            // Note: We could emit an event here if needed
         }
 
         fn get_job_details(self: @ContractState, job_id: u256) -> JobDetails {

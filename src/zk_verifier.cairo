@@ -70,19 +70,25 @@ mod ZKVerifier {
     #[abi(embed_v0)]
     impl ZKVerifierImpl of IZKVerifier<ContractState> {
         fn verify_skill_proof(
-            self: @ContractState,
+            ref self: ContractState,
             skill_type_hash: felt252,
             required_level: SkillLevel,
             zk_proof: ZKProofComponents,
             verification_key: felt252
         ) -> bool {
             if !self.is_valid_verification_key(skill_type_hash, verification_key) {
-                // Event emission temporarily disabled
+                self.emit(ProofVerificationFailed {
+                    proof_type: skill_type_hash,
+                    reason: "Invalid verification key",
+                });
                 return false;
             }
 
             if !self._verify_proof_structure(@zk_proof) {
-                // Event emission temporarily disabled
+                self.emit(ProofVerificationFailed {
+                    proof_type: skill_type_hash,
+                    reason: "Invalid proof structure",
+                });
                 return false;
             }
 
@@ -93,13 +99,24 @@ mod ZKVerifier {
                 required_level
             );
 
-            // Event emission temporarily disabled
+            if verification_result {
+                self.emit(SkillProofVerified {
+                    skill_type_hash,
+                    required_level,
+                    verifier_address: get_caller_address(),
+                });
+            } else {
+                self.emit(ProofVerificationFailed {
+                    proof_type: skill_type_hash,
+                    reason: "Proof verification failed",
+                });
+            }
 
             verification_result
         }
 
         fn verify_identity_proof(
-            self: @ContractState,
+            ref self: ContractState,
             pseudonym: felt252,
             identity_commitment: felt252,
             zk_proof: ZKProofComponents
@@ -116,7 +133,12 @@ mod ZKVerifier {
                 circuit_id
             );
 
-            // Event emission temporarily disabled
+            if verification_result {
+                self.emit(IdentityProofVerified {
+                    pseudonym,
+                    identity_commitment,
+                });
+            }
 
             verification_result
         }

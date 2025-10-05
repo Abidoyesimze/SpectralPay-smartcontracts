@@ -27,6 +27,18 @@ pub struct WorkerApplication {
     pub status: ApplicationStatus,
 }
 
+#[derive(Drop, Serde, starknet::Store)]
+pub struct ExtensionRequest {
+    pub job_id: u256,
+    pub worker_pseudonym: felt252,
+    pub requested_days: u64,
+    pub reason: ByteArray,
+    pub requested_at: u64,
+    pub status: ExtensionRequestStatus,
+    pub employer_response: ByteArray,
+    pub responded_at: u64,
+}
+
 #[derive(Drop, Serde, starknet::Store, Copy)]
 pub struct WorkerProfile {
     pub pseudonym: felt252,
@@ -95,6 +107,15 @@ pub enum ApplicationStatus {
     Rejected,
 }
 
+#[derive(Drop, Serde, starknet::Store, Copy, PartialEq)]
+pub enum ExtensionRequestStatus {
+    #[default]
+    Unknown,
+    Pending,
+    Approved,
+    Rejected,
+}
+
 #[derive(Drop, Serde, starknet::Store, PartialEq)]
 pub enum EscrowStatus {
     #[default]
@@ -152,8 +173,11 @@ pub trait IJobMarketplace<TContractState> {
     fn approve_work(ref self: TContractState, job_id: u256);
     fn dispute_work(ref self: TContractState, job_id: u256, reason: ByteArray);
     fn extend_deadline(ref self: TContractState, job_id: u256, additional_days: u64);
+    fn request_deadline_extension(ref self: TContractState, job_id: u256, requested_days: u64, reason: ByteArray);
+    fn respond_to_extension_request(ref self: TContractState, job_id: u256, approve: bool, response: ByteArray);
     fn get_job_details(self: @TContractState, job_id: u256) -> JobDetails;
     fn get_worker_applications(self: @TContractState, job_id: u256) -> Array<WorkerApplication>;
+    fn get_extension_requests(self: @TContractState, job_id: u256) -> Array<ExtensionRequest>;
 }
 
 #[starknet::interface]
@@ -223,7 +247,7 @@ pub trait IEscrow<TContractState> {
 #[starknet::interface]
 pub trait IZKVerifier<TContractState> {
     fn verify_skill_proof(
-        self: @TContractState,
+        ref self: TContractState,
         skill_type_hash: felt252,
         required_level: SkillLevel,
         zk_proof: ZKProofComponents,
@@ -231,7 +255,7 @@ pub trait IZKVerifier<TContractState> {
     ) -> bool;
     
     fn verify_identity_proof(
-        self: @TContractState,
+        ref self: TContractState,
         pseudonym: felt252,
         identity_commitment: felt252,
         zk_proof: ZKProofComponents

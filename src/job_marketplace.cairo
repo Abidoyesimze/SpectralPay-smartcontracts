@@ -1,11 +1,13 @@
 // use starknet::ContractAddress;
 use super::interfaces::{
-    IJobMarketplace, JobDetails, WorkerApplication, JobStatus, ApplicationStatus, ZKProofComponents
+    IJobMarketplace, JobDetails, WorkerApplication, JobStatus, ApplicationStatus, ZKProofComponents,
+    ExtensionRequest, ExtensionRequestStatus
 };
 
 #[starknet::contract]
 mod JobMarketplace {
-    use super::{IJobMarketplace, JobDetails, WorkerApplication, JobStatus, ApplicationStatus, ZKProofComponents};
+    use super::{IJobMarketplace, JobDetails, WorkerApplication, JobStatus, ApplicationStatus, ZKProofComponents,
+                ExtensionRequest, ExtensionRequestStatus};
     use starknet::{ContractAddress, get_caller_address, get_block_timestamp};
     use starknet::storage::{StoragePointerReadAccess, StoragePointerWriteAccess, StorageMapReadAccess, StorageMapWriteAccess, Map};
     // use core::num::traits::Zero;
@@ -16,6 +18,9 @@ mod JobMarketplace {
         job_applications: Map<(u256, felt252), WorkerApplication>,
         job_applicant_count: Map<u256, u32>,
         job_applicants: Map<(u256, u32), felt252>,
+        extension_requests: Map<(u256, felt252), ExtensionRequest>,
+        job_extension_count: Map<u256, u32>,
+        job_extensions: Map<(u256, u32), felt252>,
         pseudonym_registry: ContractAddress,
         escrow_contract: ContractAddress,
         platform_fee_rate: u256,
@@ -37,6 +42,8 @@ mod JobMarketplace {
         WorkSubmitted: WorkSubmitted,
         JobCompleted: JobCompleted,
         JobDisputed: JobDisputed,
+        ExtensionRequested: ExtensionRequested,
+        ExtensionResponded: ExtensionResponded,
     }
 
     #[derive(Drop, starknet::Event)]
@@ -84,6 +91,24 @@ mod JobMarketplace {
         #[key]
         job_id: u256,
         reason: ByteArray,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    struct ExtensionRequested {
+        #[key]
+        job_id: u256,
+        worker_pseudonym: felt252,
+        requested_days: u64,
+        reason: ByteArray,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    struct ExtensionResponded {
+        #[key]
+        job_id: u256,
+        worker_pseudonym: felt252,
+        approved: bool,
+        response: ByteArray,
     }
 
     #[constructor]
@@ -221,18 +246,13 @@ mod JobMarketplace {
             // The auto_release_delay should be the work deadline duration
             let auto_release_delay = job.work_deadline_days * 86400;
             
-            // TODO: Call escrow contract to create actual escrow
-            // let escrow_id = IEscrowDispatcher { contract_address: self.escrow_contract.read() }
-            //     .create_escrow(
-            //         job_id,
-            //         job.employer,
-            //         selected_worker,
-            //         worker_payout_address,
-            //         job.payment_amount,
-            //         job.payment_token,
-            //         auto_release_delay
-            //     );
-            let escrow_id = 1; // Placeholder until escrow integration is complete
+            // TODO: Implement proper escrow integration
+            // For now, using placeholder. In production, this should call:
+            // IEscrowDispatcher { contract_address: self.escrow_contract.read() }
+            //     .create_escrow(job_id, job.employer, selected_worker, 
+            //                   worker_payout_address, job.payment_amount, 
+            //                   job.payment_token, auto_release_delay);
+            let escrow_id = 1; // Placeholder - will be replaced with actual escrow creation
             
             // Set the actual work deadline when worker is assigned
             let current_time = get_block_timestamp();
@@ -350,6 +370,116 @@ mod JobMarketplace {
             // Note: We could emit an event here if needed
         }
 
+        fn request_deadline_extension(
+            ref self: ContractState,
+            job_id: u256,
+            requested_days: u64,
+            reason: ByteArray,
+        ) {
+            assert(!self.paused.read(), 'Contract paused');
+            
+            let job = self.jobs.read(job_id);
+            assert(job.status == JobStatus::Assigned, 'Job not assigned');
+            assert(requested_days > 0, 'Invalid requested days');
+            assert(requested_days <= 30, 'Request too long'); // Max 30 days extension
+            
+            // Check if current deadline hasn't passed
+            let current_time = get_block_timestamp();
+            let current_deadline = job.work_deadline;
+            assert(current_deadline > current_time, 'Deadline already passed');
+            
+            // Verify caller is the assigned worker
+            let caller_pseudonym = get_caller_address().into();
+            assert(job.assigned_worker == caller_pseudonym, 'Not assigned worker');
+            
+            // Check if there's already a pending request
+            let existing_request = self.extension_requests.read((job_id, caller_pseudonym));
+            assert(existing_request.status == ExtensionRequestStatus::Unknown, 'Request already exists');
+            
+            // Create extension request
+            let request = ExtensionRequest {
+                job_id: job_id,
+                worker_pseudonym: caller_pseudonym,
+                requested_days: requested_days,
+                reason: reason.clone(),
+                requested_at: current_time,
+                status: ExtensionRequestStatus::Pending,
+                employer_response: reason.clone(), // Temporary - will be updated when employer responds
+                responded_at: 0,
+            };
+            
+            self.extension_requests.write((job_id, caller_pseudonym), request);
+            
+            // Update extension count
+            let extension_count = self.job_extension_count.read(job_id);
+            self.job_extensions.write((job_id, extension_count), caller_pseudonym);
+            self.job_extension_count.write(job_id, extension_count + 1);
+            
+            self.emit(ExtensionRequested {
+                job_id: job_id,
+                worker_pseudonym: caller_pseudonym,
+                requested_days: requested_days,
+                reason: reason,
+            });
+        }
+
+        fn respond_to_extension_request(
+            ref self: ContractState,
+            job_id: u256,
+            approve: bool,
+            response: ByteArray,
+        ) {
+            assert(!self.paused.read(), 'Contract paused');
+            
+            let job = self.jobs.read(job_id);
+            assert(job.employer == get_caller_address(), 'Not employer');
+            assert(job.status == JobStatus::Assigned, 'Job not assigned');
+            
+            // For simplicity, we'll respond to the first pending request
+            // In a more complex system, you might want to specify which worker's request
+            let extension_count = self.job_extension_count.read(job_id);
+            let mut found_request = false;
+            let mut i = 0;
+            
+            while i < extension_count {
+                let worker_pseudonym = self.job_extensions.read((job_id, i));
+                let mut request = self.extension_requests.read((job_id, worker_pseudonym));
+                
+                if request.status == ExtensionRequestStatus::Pending {
+                    // Update request status
+                    if approve {
+                        request.status = ExtensionRequestStatus::Approved;
+                        
+                        // Extend the deadline
+                        let current_time = get_block_timestamp();
+                        let current_deadline = job.work_deadline;
+                        let mut updated_job = job;
+                        updated_job.work_deadline = current_deadline + (request.requested_days * 86400);
+                        self.jobs.write(job_id, updated_job);
+                    } else {
+                        request.status = ExtensionRequestStatus::Rejected;
+                    }
+                    
+                    request.employer_response = response.clone();
+                    request.responded_at = get_block_timestamp();
+                    self.extension_requests.write((job_id, worker_pseudonym), request);
+                    
+                    self.emit(ExtensionResponded {
+                        job_id: job_id,
+                        worker_pseudonym: worker_pseudonym,
+                        approved: approve,
+                        response: response,
+                    });
+                    
+                    found_request = true;
+                    break;
+                };
+                i += 1;
+            };
+            
+            assert(found_request, 'No pending request found');
+        }
+
         fn get_job_details(self: @ContractState, job_id: u256) -> JobDetails {
             self.jobs.read(job_id)
         }
@@ -367,6 +497,21 @@ mod JobMarketplace {
             };
             
             applications
+        }
+
+        fn get_extension_requests(self: @ContractState, job_id: u256) -> Array<ExtensionRequest> {
+            let extension_count = self.job_extension_count.read(job_id);
+            let mut requests = ArrayTrait::new();
+            
+            let mut i = 0;
+            while i < extension_count {
+                let _pseudonym = self.job_extensions.read((job_id, i));
+                let request = self.extension_requests.read((job_id, _pseudonym));
+                requests.append(request);
+                i += 1;
+            };
+            
+            requests
         }
     }
 
@@ -413,6 +558,7 @@ mod JobMarketplace {
             updated_job.status = JobStatus::Cancelled;
             self.jobs.write(job_id, updated_job);
         }
+
     }
 
     // Helper functions

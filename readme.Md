@@ -92,6 +92,8 @@ Core marketplace for job posting, application, and assignment.
 - Automatic escrow creation on job assignment
 - Work submission and approval workflows
 - Dispute handling integration
+- **Smart Deadline Management**: Deadlines start when worker is assigned, not when job is posted
+- **Flexible Extension System**: Both employers and workers can request deadline extensions
 
 **Main Functions:**
 ```cairo
@@ -101,7 +103,7 @@ fn post_job(
     job_description: ByteArray,
     required_skills_hash: felt252,
     payment_amount: u256,
-    deadline: u64,
+    work_deadline_days: u64,        // Duration in days (not absolute timestamp)
     payment_token: ContractAddress
 ) -> u256
 
@@ -112,6 +114,34 @@ fn apply_for_job(
     skill_zk_proof: ZKProofComponents,
     proposal_hash: felt252
 )
+
+// Assign job to selected worker (sets actual deadline)
+fn assign_job(
+    job_id: u256,
+    selected_worker: felt252,
+    worker_payout_address: ContractAddress
+)
+
+// Submit completed work
+fn submit_work(
+    job_id: u256,
+    work_proof_hash: felt252,
+    submission_uri: ByteArray
+)
+
+// Approve or dispute submitted work
+fn approve_work(job_id: u256)
+fn dispute_work(job_id: u256, reason: ByteArray)
+
+// Deadline management
+fn extend_deadline(job_id: u256, additional_days: u64)  // Employer direct extension
+fn request_deadline_extension(job_id: u256, requested_days: u64, reason: ByteArray)  // Worker request
+fn respond_to_extension_request(job_id: u256, approve: bool, response: ByteArray)  // Employer response
+
+// Query functions
+fn get_job_details(job_id: u256) -> JobDetails
+fn get_worker_applications(job_id: u256) -> Array<WorkerApplication>
+fn get_extension_requests(job_id: u256) -> Array<ExtensionRequest>
 ```
 
 ### 4. **Escrow** (`src/escrow.cairo`)
@@ -333,82 +363,201 @@ snforge test test_reputation_system
 - **JobMarketplace**: 94% coverage
 - **Escrow**: 96% coverage
 
-## 🔍 Usage Examples
+## 🔍 Contract Functions Reference
 
-### For Workers
+### JobMarketplace Contract Functions
 
-#### 1. Register Anonymous Profile
-```javascript
-// Generate ZK commitments (off-chain)
-const identityCommitment = generateIdentityCommitment(realIdentity, nonce);
-const skillsCommitment = generateSkillsCommitment(skillsList);
+#### Job Management
+```cairo
+// Post a new job
+fn post_job(
+    job_title: ByteArray,
+    job_description: ByteArray,
+    required_skills_hash: felt252,
+    payment_amount: u256,
+    work_deadline_days: u64,        // Duration in days
+    payment_token: ContractAddress
+) -> u256
 
-// Register on-chain
-await pseudonymRegistry.register_pseudonym(
-  pseudonym,
-  identityCommitment, 
-  skillsCommitment,
-  reputationBond
-);
+// Apply for a job
+fn apply_for_job(
+    job_id: u256,
+    worker_pseudonym: felt252,
+    skill_zk_proof: ZKProofComponents,
+    proposal_hash: felt252
+)
+
+// Assign job to worker
+fn assign_job(
+    job_id: u256,
+    selected_worker: felt252,
+    worker_payout_address: ContractAddress
+)
+
+// Submit completed work
+fn submit_work(
+    job_id: u256,
+    work_proof_hash: felt252,
+    submission_uri: ByteArray
+)
+
+// Approve submitted work
+fn approve_work(job_id: u256)
+
+// Dispute submitted work
+fn dispute_work(job_id: u256, reason: ByteArray)
 ```
 
-#### 2. Add Skill Proof
-```javascript
-// Generate skill proof (off-chain)
-const skillProof = generateSkillProof(
-  skillType: "cairo",
-  level: SkillLevel.Advanced,
-  credentials
-);
+#### Deadline Management
+```cairo
+// Employer direct deadline extension
+fn extend_deadline(job_id: u256, additional_days: u64)
 
-// Submit to registry
-await pseudonymRegistry.add_skill_proof(
-  pseudonym,
-  skillTypeHash,
-  SkillLevel.Advanced,
-  skillProof,
-  verificationKey
-);
+// Worker request for deadline extension
+fn request_deadline_extension(
+    job_id: u256,
+    requested_days: u64,
+    reason: ByteArray
+)
+
+// Employer response to extension request
+fn respond_to_extension_request(
+    job_id: u256,
+    approve: bool,
+    response: ByteArray
+)
 ```
 
-#### 3. Apply for Job
-```javascript
-// Apply with skill verification
-await jobMarketplace.apply_for_job(
-  jobId,
-  workerPseudonym,
-  skillZkProof,
-  proposalHash
-);
+#### Query Functions
+```cairo
+// Get job details
+fn get_job_details(job_id: u256) -> JobDetails
+
+// Get worker applications for a job
+fn get_worker_applications(job_id: u256) -> Array<WorkerApplication>
+
+// Get extension requests for a job
+fn get_extension_requests(job_id: u256) -> Array<ExtensionRequest>
 ```
 
-### For Employers
+### PseudonymRegistry Contract Functions
 
-#### 1. Post Job
-```javascript
-const jobId = await jobMarketplace.post_job(
-  "Smart Contract Developer",
-  "Build DeFi protocol on StarkNet",
-  cairoSkillHash,
-  paymentAmount,
-  deadline,
-  paymentToken
-);
+```cairo
+// Register anonymous worker
+fn register_pseudonym(
+    pseudonym: felt252,
+    identity_commitment: felt252,
+    skills_commitment: felt252,
+    reputation_bond: u256
+)
+
+// Add skill proof
+fn add_skill_proof(
+    pseudonym: felt252,
+    skill_type_hash: felt252,
+    skill_level: SkillLevel,
+    zk_proof: ZKProofComponents,
+    verification_key: felt252
+)
+
+// Verify skill requirement
+fn verify_skill_requirement(
+    pseudonym: felt252,
+    required_skill_hash: felt252,
+    zk_proof: ZKProofComponents
+) -> bool
+
+// Get worker profile
+fn get_worker_profile(pseudonym: felt252) -> WorkerProfile
 ```
 
-#### 2. Review Applications
-```javascript
-const applications = await jobMarketplace.get_worker_applications(jobId);
-// Review anonymous applications based on skill proofs and reputation
+### ZKVerifier Contract Functions
+
+```cairo
+// Verify skill proof
+fn verify_skill_proof(
+    skill_type_hash: felt252,
+    required_level: SkillLevel,
+    zk_proof: ZKProofComponents,
+    verification_key: felt252
+) -> bool
+
+// Verify identity proof
+fn verify_identity_proof(
+    pseudonym: felt252,
+    identity_commitment: felt252,
+    zk_proof: ZKProofComponents
+) -> bool
 ```
 
-#### 3. Assign Job
-```javascript
-await jobMarketplace.assign_job(
-  jobId,
-  selectedWorkerPseudonym,
-  workerPayoutAddress  // Fresh anonymous address
-);
+### Escrow Contract Functions
+
+```cairo
+// Create escrow
+fn create_escrow(
+    job_id: u256,
+    employer: ContractAddress,
+    worker_pseudonym: felt252,
+    worker_payout_address: ContractAddress,
+    amount: u256,
+    token: ContractAddress,
+    auto_release_delay: u64
+) -> u256
+
+// Release payment
+fn release_payment(escrow_id: u256)
+
+// Dispute payment
+fn dispute_payment(escrow_id: u256, reason: ByteArray)
+
+// Get escrow details
+fn get_escrow_details(escrow_id: u256) -> EscrowDetails
+```
+
+### Key Data Structures
+
+```cairo
+struct JobDetails {
+    id: u256,
+    employer: ContractAddress,
+    title: ByteArray,
+    description: ByteArray,
+    required_skills_hash: felt252,
+    payment_amount: u256,
+    payment_token: ContractAddress,
+    work_deadline_days: u64,           // Duration in days
+    work_deadline: u64,                // Actual deadline timestamp
+    status: JobStatus,                 // Open, Assigned, Submitted, Completed, etc.
+    assigned_worker: felt252,
+    created_at: u64,
+    assigned_at: u64,
+    escrow_id: u256,
+}
+
+struct ExtensionRequest {
+    job_id: u256,
+    worker_pseudonym: felt252,
+    requested_days: u64,
+    reason: ByteArray,
+    requested_at: u64,
+    status: ExtensionRequestStatus,    // Pending, Approved, Rejected
+    employer_response: ByteArray,
+    responded_at: u64,
+}
+```
+
+### Events
+
+```cairo
+// JobMarketplace Events
+JobPosted(job_id, employer, title, payment_amount)
+ApplicationSubmitted(job_id, worker_pseudonym, proposal_hash)
+WorkerSelected(job_id, worker_pseudonym, escrow_id)
+WorkSubmitted(job_id, worker_pseudonym)
+JobCompleted(job_id, worker_pseudonym, payment_amount)
+JobDisputed(job_id, reason)
+ExtensionRequested(job_id, worker_pseudonym, requested_days, reason)
+ExtensionResponded(job_id, worker_pseudonym, approved, response)
 ```
 
 

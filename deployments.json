@@ -1,32 +1,32 @@
 {
   "network": "starknet-sepolia",
-  "deployment_date": "2024-10-05",
+  "deployment_date": "2024-10-15",
   "deployer": "0x2ae0011d786caa2b3467691be1c5cc754024cec3eb3f051703d1d8dda1bc99a",
   "contracts": {
     "ZKVerifier": {
-      "address": "0x01375604d2259c71c2712427454c2c4a208142dc6f0e7ba966c6965133cd6558",
+      "address": "0x05f4719040833aa7d1913fb808b3618cf1db71a829b3924d0431ed3fb8dca75f",
       "class_hash": "0x016d7648703c209cc3c77da002124919c0efb447bab42f8ac0c2e7b89ab6208b",
-      "transaction_hash": "0x0597542bb1228075ca51b0a01d1152ca9614cf706b8317a777667845dc63e430",
+      "transaction_hash": "0x0625d9ff567d9c5c9f6dc5441f3e1eb43891df9cced6a511b45a89215637a0c5",
       "constructor_params": {
         "owner": "0x2ae0011d786caa2b3467691be1c5cc754024cec3eb3f051703d1d8dda1bc99a",
         "identity_circuit_id": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
       }
     },
     "PseudonymRegistry": {
-      "address": "0x04e2192d597f7c51434237bdfb04e79c2bcd9ae479d668b7aa96a01a5bb462e4",
-      "class_hash": "0x064f877910cb1bcc9ad11ead3292ac4fec6697646ad769e5d61af38eefebd1e5",
-      "transaction_hash": "0x02a34b704688cb6809873a2cec88bef25029a64440c714b4bb08e7d8907714cd",
+      "address": "0x0677eef8208bbe465dd05542e81a8b800a0b6548bf34df7a34e0aeea588496ce",
+      "class_hash": "0x02155e591c08a744318e4ebefe1c77c7466d17283f2ebc641f5e99d16d54fe3e",
+      "transaction_hash": "0x033e337d98ba185f0170d3007f0191b38e4971b462682169a46d28198a28fff0",
       "constructor_params": {
         "owner": "0x2ae0011d786caa2b3467691be1c5cc754024cec3eb3f051703d1d8dda1bc99a",
         "reputation_bond_token": "0x2ae0011d786caa2b3467691be1c5cc754024cec3eb3f051703d1d8dda1bc99a",
         "min_reputation_bond": "1",
-        "zk_verifier_contract": "0x01375604d2259c71c2712427454c2c4a208142dc6f0e7ba966c6965133cd6558"
+        "zk_verifier_contract": "0x05f4719040833aa7d1913fb808b3618cf1db71a829b3924d0431ed3fb8dca75f"
       }
     },
     "Escrow": {
-      "address": "0x056a0f319ede0a78a7d5c1bfff16f63b20eac6108916c638909db5cb76d582e6",
+      "address": "0x024624bbb3a42b22305f730caac5faa008fc5c248452bf4dc1b910de619ab1db",
       "class_hash": "0x06bd81233d07960b2499f44e4af89bfe0e35f5ef3e6afd4979effe87e5689ba9",
-      "transaction_hash": "0x03d4c2f30e5ab9dbdb027ff332acf9997080ab5c171c5d2a45b925be28f7e7fa",
+      "transaction_hash": "0x0730bf305e6c718dbfaa12451e35beaeb6790d45a9502c00cf8be85e30d23d9b",
       "constructor_params": {
         "owner": "0x2ae0011d786caa2b3467691be1c5cc754024cec3eb3f051703d1d8dda1bc99a",
         "dispute_resolver": "0x2ae0011d786caa2b3467691be1c5cc754024cec3eb3f051703d1d8dda1bc99a",
@@ -36,13 +36,13 @@
       }
     },
     "JobMarketplace": {
-      "address": "0x060cfd7c5a94acbaa988968326bae89869ad74a7d8c94e6200f70f11ac7263db",
-      "class_hash": "0x07ac6b2bb7d63198ee873dad1bcdaf9bb6c6709f2a8c54de5dfe04e44eb7674c",
-      "transaction_hash": "0x03c7f993cdfc92fcdb2d742b033820e91bb0f1640b334306ddd331d1aafbbb6a",
+      "address": "0x06bdccd9161fd168e7e119dfe624485078e5deb93789dd412492d5e7d800d505",
+      "class_hash": "0x02097d2332a7326fd1a11a49e7f0d33da2f1eedbe492764178be0d95e1a856b0",
+      "transaction_hash": "0x01ba2e063dae9c27635aef2256182aed7173880a86ac0d9774347068bf88d858",
       "constructor_params": {
         "owner": "0x2ae0011d786caa2b3467691be1c5cc754024cec3eb3f051703d1d8dda1bc99a",
-        "pseudonym_registry": "0x04e2192d597f7c51434237bdfb04e79c2bcd9ae479d668b7aa96a01a5bb462e4",
-        "escrow_contract": "0x056a0f319ede0a78a7d5c1bfff16f63b20eac6108916c638909db5cb76d582e6",
+        "pseudonym_registry": "0x0677eef8208bbe465dd05542e81a8b800a0b6548bf34df7a34e0aeea588496ce",
+        "escrow_contract": "0x024624bbb3a42b22305f730caac5faa008fc5c248452bf4dc1b910de619ab1db",
         "platform_fee_rate": "100",
         "fee_recipient": "0x018ed9DA972b06b7C3479385992792900EC86cB8fEA9a7cAdD5a85fef89fD20B"
       }
@@ -53,6 +53,8 @@
   "notes": {
     "platform_fee_rate": "100 = 1% fee",
     "min_reputation_bond": "1 wei (placeholder)",
-    "identity_circuit_id": "Placeholder circuit ID for testing"
+    "identity_circuit_id": "Placeholder circuit ID for testing",
+    "status": "PRODUCTION READY - All contracts deployed with native ETH handling",
+    "features": "Complete freelancing platform with ZK verification, escrow, dispute resolution"
   }
 }

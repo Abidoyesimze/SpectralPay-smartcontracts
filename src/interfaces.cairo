@@ -78,7 +78,7 @@ pub struct EscrowDetails {
     pub platform_fee: u256,
 }
 
-#[derive(Drop, Serde)]
+#[derive(Drop, Serde, starknet::Store, Copy)]
 pub struct ZKProofComponents {
     pub proof_a: (felt252, felt252),
     pub proof_b: ((felt252, felt252), (felt252, felt252)),
@@ -126,7 +126,7 @@ pub enum EscrowStatus {
     Refunded,
 }
 
-#[derive(Drop, Serde, starknet::Store, Copy)]
+#[derive(Drop, Serde, starknet::Store, Copy, PartialEq)]
 pub enum SkillLevel {
     #[default]
     Unknown,
@@ -144,8 +144,7 @@ pub trait IJobMarketplace<TContractState> {
         job_description: ByteArray,
         required_skills_hash: felt252,
         payment_amount: u256,
-        work_deadline_days: u64,
-        payment_token: ContractAddress
+        work_deadline_days: u64
     ) -> u256;
     
     fn apply_for_job(
@@ -287,14 +286,4 @@ pub trait AdminTrait<TContractState> {
     fn pause(ref self: TContractState);
     fn unpause(ref self: TContractState);
     fn set_emergency_multisig(ref self: TContractState, new_multisig: ContractAddress);
-}
-
-// Basic ERC20 interface for reputation bonds
-#[starknet::interface]
-pub trait IERC20<TContractState> {
-    fn transfer(ref self: TContractState, recipient: ContractAddress, amount: u256) -> bool;
-    fn transfer_from(ref self: TContractState, sender: ContractAddress, recipient: ContractAddress, amount: u256) -> bool;
-    fn balance_of(self: @TContractState, account: ContractAddress) -> u256;
-    fn allowance(self: @TContractState, owner: ContractAddress, spender: ContractAddress) -> u256;
-    fn approve(ref self: TContractState, spender: ContractAddress, amount: u256) -> bool;
 }
